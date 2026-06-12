@@ -531,28 +531,6 @@ fn skip_reminder(app: AppHandle) -> Result<(), String> {
   Ok(())
 }
 
-#[tauri::command]
-fn snooze_reminder(
-  app: AppHandle,
-  kind: Option<String>,
-  minutes: Option<u64>,
-) -> Result<(), String> {
-  if let Some(w) = app.get_webview_window(PET_WINDOW_LABEL) {
-    w.hide().map_err(|e| e.to_string())?;
-  }
-  // snooze 走完整响应流程（清 active 并允许队列下一项）
-  after_response(&app, EventKind::Snooze);
-  let id = kind.unwrap_or_else(|| "drink_water".to_string());
-  let mins = minutes.unwrap_or(5).clamp(1, 120);
-  let handle = app.clone();
-  tauri::async_runtime::spawn(async move {
-    tokio::time::sleep(std::time::Duration::from_secs(mins * 60)).await;
-    // snooze 到点也走自动调度路径（受 DnD 与防堆叠影响）
-    try_trigger_auto(&handle, &id);
-  });
-  Ok(())
-}
-
 /// 桌宠窗口加载/刷新时拉取当前未响应的提醒（防 emit 事件丢失）
 #[tauri::command]
 fn get_active_reminder(
@@ -854,7 +832,6 @@ pub fn run() {
       hide_pet,
       complete_reminder,
       skip_reminder,
-      snooze_reminder,
       toggle_pause,
       trigger_now,
       open_settings,

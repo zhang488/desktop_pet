@@ -14,7 +14,6 @@ pub enum EventKind {
   Trigger,
   Complete,
   Skip,
-  Snooze,
   Dismiss,
 }
 
@@ -24,7 +23,6 @@ impl EventKind {
       EventKind::Trigger => "trigger",
       EventKind::Complete => "complete",
       EventKind::Skip => "skip",
-      EventKind::Snooze => "snooze",
       EventKind::Dismiss => "dismiss",
     }
   }
