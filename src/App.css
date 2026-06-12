@@ -89,40 +89,6 @@
   color: #374151;
 }
 
-.pet-snooze {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.85);
-  padding: 4px 8px;
-  border-radius: 999px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-}
-
-.snooze-label {
-  font-size: 11px;
-  color: #6b7280;
-  padding: 0 4px;
-}
-
-.snooze-btn {
-  background: transparent;
-  border: none;
-  color: #4b5563;
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.snooze-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--accent, #6366f1);
-}
-
-.snooze-btn:active { transform: scale(0.94); }
-
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }

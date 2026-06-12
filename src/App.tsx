@@ -73,17 +73,10 @@ function App() {
     }
   }
 
-  const finalize = (mins?: number) => {
-    const kind = reminder?.kind
+  const finalize = (skip = false) => {
     setPhase('leaving')
     window.setTimeout(async () => {
-      if (mins == null) {
-        await invoke('complete_reminder').catch((e) => console.error(e))
-      } else if (mins === -1) {
-        await invoke('skip_reminder').catch((e) => console.error(e))
-      } else {
-        await invoke('snooze_reminder', { kind, minutes: mins }).catch((e) => console.error(e))
-      }
+      await invoke(skip ? 'skip_reminder' : 'complete_reminder').catch((e) => console.error(e))
       setPhase('idle')
       setReminder(null)
       setMood('normal')
@@ -114,13 +107,7 @@ function App() {
       <PenguinPet mood={mood} />
       <div className="pet-actions">
         <button className="btn btn-primary" onClick={onComplete}>搞定 ✓</button>
-        <button className="btn btn-ghost" onClick={() => finalize(-1)}>跳过</button>
-      </div>
-      <div className="pet-snooze">
-        <span className="snooze-label">小睡：</span>
-        <button className="snooze-btn" onClick={() => finalize(5)}>5min</button>
-        <button className="snooze-btn" onClick={() => finalize(10)}>10min</button>
-        <button className="snooze-btn" onClick={() => finalize(15)}>15min</button>
+        <button className="btn btn-ghost" onClick={() => finalize(true)}>跳过</button>
       </div>
     </div>
   )

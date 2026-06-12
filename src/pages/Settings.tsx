@@ -118,8 +118,10 @@ function Settings() {
     await invoke('set_task_enabled', { id, enabled }).catch((e) => console.error(e))
   }
 
-  const onIntervalChange = async (id: string, intervalSecs: number) => {
-    if (!Number.isFinite(intervalSecs) || intervalSecs < 5) return
+  // UI 以分钟为单位，后端仍存秒
+  const onIntervalChange = async (id: string, minutes: number) => {
+    if (!Number.isFinite(minutes) || minutes <= 0) return
+    const intervalSecs = Math.max(5, Math.round(minutes * 60))
     patchTask(id, { interval_secs: intervalSecs })
     await invoke('set_task_interval', { id, intervalSecs }).catch((e) => console.error(e))
   }
@@ -267,16 +269,14 @@ function Settings() {
                     <div className="control">
                       <input
                         type="number"
-                        min={5}
-                        step={5}
-                        value={t.interval_secs ?? 60}
-                        onChange={(e) => onIntervalChange(t.id, parseInt(e.target.value, 10) || 0)}
+                        min={0.5}
+                        step={0.5}
+                        value={Number(((t.interval_secs ?? 60) / 60).toFixed(1))}
+                        onChange={(e) => onIntervalChange(t.id, parseFloat(e.target.value) || 0)}
                         disabled={!t.enabled}
                       />
-                      <span className="unit">秒</span>
-                      <span className="hint">
-                        ≈ {((t.interval_secs ?? 60) / 60).toFixed(1)} 分钟
-                      </span>
+                      <span className="unit">分钟</span>
+                      <span className="hint">= {t.interval_secs ?? 60} 秒</span>
                     </div>
                   </div>
                 ) : (
