@@ -1,0 +1,129 @@
+.pet-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px;
+  box-sizing: border-box;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  cursor: grab;
+}
+
+.pet-container:active { cursor: grabbing; }
+
+.phase-appearing {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: slideIn 0.4s ease-out forwards;
+}
+
+.phase-waiting {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.phase-leaving {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.pet-bubble {
+  background: rgba(255, 255, 255, 0.96);
+  color: #1f2937;
+  font-size: 14px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  max-width: 280px;
+  text-align: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-left: 4px solid var(--accent, #6366f1);
+}
+
+.pet-bubble-icon { font-size: 18px; line-height: 1; }
+.pet-bubble-text { flex: 1; text-align: left; }
+
+.pet-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.96);
+  border-bottom: 0;
+}
+
+.pet-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn {
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.2s;
+}
+
+.btn:active { transform: scale(0.96); }
+
+.btn-primary {
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.85);
+  color: #374151;
+}
+
+.pet-snooze {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 4px 8px;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.snooze-label {
+  font-size: 11px;
+  color: #6b7280;
+  padding: 0 4px;
+}
+
+.snooze-btn {
+  background: transparent;
+  border: none;
+  color: #4b5563;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.snooze-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--accent, #6366f1);
+}
+
+.snooze-btn:active { transform: scale(0.94); }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
