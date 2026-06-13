@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import PenguinPet from './components/PenguinPet'
+import Live2DPet from './components/Live2DPet'
 import './App.css'
 
 type ReminderPayload = {
@@ -27,6 +28,8 @@ function App() {
   const [phase, setPhase] = useState<Phase>('idle')
   const [reminder, setReminder] = useState<ReminderPayload | null>(null)
   const [mood, setMood] = useState<'normal' | 'happy'>('normal')
+  // Live2D 加载失败时回退到 SVG 企鹅
+  const [live2dFailed, setLive2dFailed] = useState(false)
 
   useEffect(() => {
     let unlisten: UnlistenFn | undefined
@@ -88,27 +91,37 @@ function App() {
     finalize()
   }
 
-  if (phase === 'idle') {
-    return null
-  }
-
   const theme = (reminder && THEME[reminder.kind]) || THEME.manual
+  const hidden = phase === 'idle'
 
+  // 注意：idle 时容器保持挂载（只是隐藏），避免每次提醒都重新初始化 Live2D / WebGL
   return (
     <div
       className={`pet-container phase-${phase}`}
-      onMouseDown={startDrag}
+      onMouseDown={hidden ? undefined : startDrag}
       style={{ '--accent': theme.color } as React.CSSProperties}
     >
-      <div className="pet-bubble">
-        <span className="pet-bubble-icon">{theme.icon}</span>
-        <span className="pet-bubble-text">{reminder?.message ?? '提醒来啦～'}</span>
-      </div>
-      <PenguinPet mood={mood} />
-      <div className="pet-actions">
-        <button className="btn btn-primary" onClick={onComplete}>搞定 ✓</button>
-        <button className="btn btn-ghost" onClick={() => finalize(true)}>跳过</button>
-      </div>
+      {!hidden && (
+        <div className="pet-bubble">
+          <span className="pet-bubble-icon">{theme.icon}</span>
+          <span className="pet-bubble-text">{reminder?.message ?? '提醒来啦～'}</span>
+        </div>
+      )}
+      {live2dFailed ? (
+        <PenguinPet mood={mood} />
+      ) : (
+        <Live2DPet
+          kind={hidden ? null : reminder?.kind}
+          mood={mood}
+          onError={() => setLive2dFailed(true)}
+        />
+      )}
+      {!hidden && (
+        <div className="pet-actions">
+          <button className="btn btn-primary" onClick={onComplete}>搞定 ✓</button>
+          <button className="btn btn-ghost" onClick={() => finalize(true)}>跳过</button>
+        </div>
+      )}
     </div>
   )
 }

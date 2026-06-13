@@ -14,6 +14,11 @@
 
 .pet-container:active { cursor: grabbing; }
 
+.phase-idle {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .phase-appearing {
   opacity: 0;
   transform: translateY(20px);
