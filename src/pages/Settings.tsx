@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import './Settings.css'
 
 type TaskInfo = {
@@ -195,6 +196,9 @@ function Settings() {
         {/* 统计卡片 */}
         {stats && <StatsCard stats={stats} />}
 
+        {/* 桌宠模型管理 */}
+        <ModelsCard />
+
         {/* 全局设置区 */}
         <section className="task-card global-card">
           <div className="global-head">
@@ -311,6 +315,116 @@ function Settings() {
         <span>修改即时生效 · 配置保存在 %APPDATA%/Desktop Pet/</span>
       </footer>
     </div>
+  )
+}
+
+type ModelItem = {
+  id: string
+  name: string
+  size: number
+  source: string
+  is_builtin: boolean
+  is_current: boolean
+  thumbnail_url: string | null
+}
+
+function fmtSize(bytes: number): string {
+  if (bytes <= 0) return '—'
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function ModelsCard() {
+  const [models, setModels] = useState<ModelItem[]>([])
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; err: boolean } | null>(null)
+
+  const reload = useCallback(async () => {
+    try {
+      setModels(await invoke<ModelItem[]>('list_models'))
+    } catch (e) {
+      console.error('list_models', e)
+    }
+  }, [])
+
+  useEffect(() => {
+    reload()
+  }, [reload])
+
+  const onImport = async () => {
+    setMsg(null)
+    try {
+      const path = await open({
+        multiple: false,
+        filters: [{ name: 'Live2D 模型包', extensions: ['zip'] }],
+      })
+      if (!path || typeof path !== 'string') return
+      setBusy(true)
+      const info = await invoke<{ name: string }>('import_model', { zipPath: path })
+      setMsg({ text: `已导入：${info.name}`, err: false })
+      await reload()
+    } catch (e) {
+      setMsg({ text: `导入失败：${e}`, err: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const onUse = async (id: string) => {
+    setMsg(null)
+    await invoke('set_current_model', { id }).catch((e) => setMsg({ text: `切换失败：${e}`, err: true }))
+    await reload()
+  }
+
+  const onDelete = async (id: string, name: string) => {
+    if (!window.confirm(`确定删除模型「${name}」？`)) return
+    await invoke('delete_model', { id }).catch((e) => setMsg({ text: `删除失败：${e}`, err: true }))
+    await reload()
+  }
+
+  return (
+    <section className="task-card models-card">
+      <div className="global-head">
+        <span className="task-icon">🎭</span>
+        <span className="task-name">桌宠模型</span>
+        <button className="btn-test" onClick={onImport} disabled={busy}>
+          {busy ? '导入中…' : '导入 .zip'}
+        </button>
+      </div>
+
+      {msg && <p className={`models-msg ${msg.err ? 'err' : ''}`}>{msg.text}</p>}
+
+      <div className="models-grid">
+        {models.map((m) => (
+          <div key={m.id} className={`model-item ${m.is_current ? 'current' : ''}`}>
+            <div className="model-thumb">
+              {m.thumbnail_url ? (
+                <img src={m.thumbnail_url} alt={m.name} />
+              ) : (
+                <span className="model-thumb-ph">🎭</span>
+              )}
+              {m.is_current && <span className="model-badge">使用中</span>}
+            </div>
+            <div className="model-name" title={m.name}>
+              {m.name}
+            </div>
+            <div className="model-sub">{m.is_builtin ? '内置' : fmtSize(m.size)}</div>
+            <div className="model-actions">
+              {!m.is_current && (
+                <button className="btn-test" onClick={() => onUse(m.id)}>
+                  使用
+                </button>
+              )}
+              {!m.is_builtin && (
+                <button className="btn-test btn-danger" onClick={() => onDelete(m.id, m.name)}>
+                  删除
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 

@@ -1,3 +1,4 @@
+mod models;
 mod stats;
 
 use std::collections::{HashMap, VecDeque};
@@ -148,6 +149,8 @@ struct PersistedSettings {
   tasks: HashMap<String, TaskOverride>,
   #[serde(default)]
   dnd: DndConfig,
+  #[serde(default)]
+  selected_model_id: Option<String>,
 }
 
 struct AppState {
@@ -160,6 +163,7 @@ struct AppState {
   pending_queue: VecDeque<String>,
   tasks: HashMap<String, TaskOverride>,
   dnd: DndConfig,
+  selected_model_id: Option<String>,
 }
 
 impl AppState {
@@ -186,6 +190,7 @@ impl AppState {
     PersistedSettings {
       tasks: self.tasks.clone(),
       dnd: self.dnd.clone(),
+      selected_model_id: self.selected_model_id.clone(),
     }
   }
 }
@@ -204,6 +209,7 @@ impl Default for AppState {
       pending_queue: VecDeque::new(),
       tasks,
       dnd: DndConfig::default(),
+      selected_model_id: None,
     }
   }
 }
@@ -531,6 +537,122 @@ fn skip_reminder(app: AppHandle) -> Result<(), String> {
   Ok(())
 }
 
+#[derive(Serialize)]
+struct ModelListItem {
+  id: String,
+  name: String,
+  size: u64,
+  source: String,
+  is_builtin: bool,
+  is_current: bool,
+  thumbnail_url: Option<String>,
+}
+
+/// 桌宠窗口加载时拉取当前要显示的模型（URL + 表情/动作清单）。
+#[tauri::command]
+fn get_current_model(app: AppHandle) -> Result<models::CurrentModel, String> {
+  let selected = load_settings(&app).selected_model_id;
+  let registry = models::load_registry(&app);
+  let info = selected
+    .as_ref()
+    .and_then(|id| registry.iter().find(|m| &m.id == id))
+    .or_else(|| registry.iter().find(|m| m.is_builtin))
+    .ok_or("无可用模型")?;
+  Ok(models::CurrentModel {
+    id: info.id.clone(),
+    url: models::model_url(info),
+    expressions: info.expressions.clone(),
+    motions: info.motions.clone(),
+  })
+}
+
+/// 列出全部模型（含内置），标注当前选中与缩略图地址。
+#[tauri::command]
+fn list_models(app: AppHandle) -> Result<Vec<ModelListItem>, String> {
+  let selected = load_settings(&app)
+    .selected_model_id
+    .unwrap_or_else(|| models::BUILTIN_ID.to_string());
+  let registry = models::load_registry(&app);
+  let items = registry
+    .iter()
+    .map(|m| {
+      let has_thumb = models::model_dir(&app, &m.id)
+        .map(|d| d.join("thumbnail.png").exists())
+        .unwrap_or(false);
+      ModelListItem {
+        id: m.id.clone(),
+        name: m.name.clone(),
+        size: m.size,
+        source: m.source.clone(),
+        is_builtin: m.is_builtin,
+        is_current: m.id == selected,
+        thumbnail_url: if has_thumb {
+          Some(format!("{}/thumbnail.png", models::model_base_url(&m.id)))
+        } else {
+          None
+        },
+      }
+    })
+    .collect();
+  Ok(items)
+}
+
+/// 导入一个 zip 模型，成功返回新记录。
+#[tauri::command]
+fn import_model(app: AppHandle, zip_path: String) -> Result<models::ModelInfo, String> {
+  models::import_zip(&app, &zip_path)
+}
+
+/// 切换当前模型：写偏好 + 广播 model:changed 让桌宠热加载。
+#[tauri::command]
+fn set_current_model(
+  app: AppHandle,
+  state: State<'_, Mutex<AppState>>,
+  id: String,
+) -> Result<(), String> {
+  let registry = models::load_registry(&app);
+  if !registry.iter().any(|m| m.id == id) {
+    return Err("模型不存在".to_string());
+  }
+  let snapshot = {
+    let mut s = state.lock().map_err(|e| e.to_string())?;
+    s.selected_model_id = Some(id.clone());
+    s.snapshot()
+  };
+  save_settings(&app, &snapshot);
+  let _ = app.emit("model:changed", &id);
+  Ok(())
+}
+
+/// 删除用户模型；若删的是当前选中则回退内置。
+#[tauri::command]
+fn delete_model(
+  app: AppHandle,
+  state: State<'_, Mutex<AppState>>,
+  id: String,
+) -> Result<(), String> {
+  models::delete_model(&app, &id)?;
+  let snapshot = {
+    let mut s = state.lock().map_err(|e| e.to_string())?;
+    if s.selected_model_id.as_deref() == Some(id.as_str()) {
+      s.selected_model_id = None;
+    }
+    s.snapshot()
+  };
+  save_settings(&app, &snapshot);
+  let _ = app.emit("model:changed", "");
+  Ok(())
+}
+
+/// 前端渲染首帧后回传缩略图字节，落盘到 models/<id>/thumbnail.png。
+#[tauri::command]
+fn save_thumbnail(app: AppHandle, id: String, bytes: Vec<u8>) -> Result<(), String> {
+  let dir = models::model_dir(&app, &id).ok_or("无法定位模型目录")?;
+  fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+  fs::write(dir.join("thumbnail.png"), bytes).map_err(|e| e.to_string())?;
+  Ok(())
+}
+
 /// 桌宠窗口加载/刷新时拉取当前未响应的提醒（防 emit 事件丢失）
 #[tauri::command]
 fn get_active_reminder(
@@ -816,6 +938,9 @@ fn start_daily_task(handle: AppHandle, task: ReminderTaskConfig, default_hm: (u3
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .register_uri_scheme_protocol("petmodel", |ctx, request| {
+      models::handle_petmodel(ctx.app_handle(), request)
+    })
     .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
       if let Some(w) = app.get_webview_window(PET_WINDOW_LABEL) {
         let _ = w.show();
@@ -826,6 +951,7 @@ pub fn run() {
       MacosLauncher::LaunchAgent,
       None,
     ))
+    .plugin(tauri_plugin_dialog::init())
     .manage(Mutex::new(AppState::default()))
     .invoke_handler(tauri::generate_handler![
       show_pet,
@@ -845,6 +971,12 @@ pub fn run() {
       set_autostart,
       get_stats,
       get_active_reminder,
+      get_current_model,
+      list_models,
+      import_model,
+      set_current_model,
+      delete_model,
+      save_thumbnail,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -882,6 +1014,7 @@ pub fn run() {
             s.tasks.insert(id, ov);
           }
           s.dnd = persisted.dnd;
+          s.selected_model_id = persisted.selected_model_id;
         }
       }
 
